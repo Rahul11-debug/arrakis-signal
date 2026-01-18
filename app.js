@@ -1,13 +1,11 @@
-const express = require("express");
-const cors = require("cors");
+import express from "express";
 
 const app = express();
 
-app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("API is running...");
+  res.send("App is running");
 });
 
-module.exports = app;
+export default app;
