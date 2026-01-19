@@ -20,6 +20,18 @@ const schema = new mongoose.Schema({
     enum: ['citizen', 'staff', 'admin'],
     default: 'citizen',
   },
+  otp: {
+    type: String,
+  },
+  otpExpiry: {
+    type: Date,
+  },
+  resetPasswordToken: {
+    type: String,
+  },
+  resetPasswordExpiry: {
+    type: Date,
+  },
 }, {
   timestamps: true,
 });
