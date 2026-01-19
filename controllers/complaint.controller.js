@@ -1,4 +1,6 @@
 import Complaint from '../models/Complaint.js';
+import PDFDocument from 'pdfkit';
+import User from '../models/User.js';
 
 export const createComplaint = async (req, res) => {
   try {
@@ -166,7 +168,73 @@ export const deleteComplaint = async (req, res) => {
   }
 };
 
+export const generateComplaintReport = async (req, res) => {
+  try {
+    const complaint = await Complaint.findById(req.params.id)
+      .populate('user', 'name email')
+      .populate('assignedTo', 'name email');
 
+    if (!complaint) {
+      return res.status(404).json({
+        message: 'Complaint not found'
+      });
+    }
+
+    const doc = new PDFDocument({ margin: 50 });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=complaint-${complaint._id}.pdf`
+    );
+
+    doc.pipe(res);
+
+    doc
+      .fontSize(20)
+      .text('Complaint Report', { align: 'center' })
+      .moveDown(2);
+
+    doc.fontSize(12);
+
+    doc.text(`Complaint ID: ${complaint._id}`);
+    doc.text(`Title: ${complaint.title}`);
+    doc.text(`Description: ${complaint.description}`);
+    doc.text(`Category: ${complaint.category}`);
+    doc.text(`Status: ${complaint.status}`);
+    doc.text(`Priority: ${complaint.priority}`);
+    doc.moveDown();
+
+    doc.text('Location:', { underline: true });
+    doc.text(`Address: ${complaint.location.address}`);
+    doc.text(`Latitude: ${complaint.location.lat}`);
+    doc.text(`Longitude: ${complaint.location.lng}`);
+    doc.moveDown();
+
+    doc.text('Reported By:', { underline: true });
+    doc.text(`Name: ${complaint.user.name}`);
+    doc.text(`Email: ${complaint.user.email}`);
+    doc.moveDown();
+
+    if (complaint.assignedTo) {
+      doc.text('Assigned To:', { underline: true });
+      doc.text(`Name: ${complaint.assignedTo.name}`);
+      doc.text(`Email: ${complaint.assignedTo.email}`);
+      doc.moveDown();
+    }
+
+    doc.text(`Created At: ${complaint.createdAt}`);
+    if (complaint.resolvedAt) {
+      doc.text(`Resolved At: ${complaint.resolvedAt}`);
+    }
+
+    doc.end();
+  } catch (error) {
+    res.status(500).json({
+      message: error.message
+    });
+  }
+};
 
 export const heatmapData = async (req, res) => {
     const data = await Complaint.find({}, '{location:1, _id:0}');
