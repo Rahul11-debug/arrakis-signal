@@ -1,4 +1,4 @@
-import { urlencoded } from 'express';
+
 import mongoose from 'mongoose';
 
 const schema = new mongoose.Schema({
@@ -21,7 +21,7 @@ const schema = new mongoose.Schema({
     },
     image: {
         url: String,
-        publicId: String,
+        filename: String,
     },
     status: {
         type: String,
@@ -38,7 +38,7 @@ const schema = new mongoose.Schema({
         ref: 'User',
         required: true,
     },
-    asssignedTo: {
+    assignedTo: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
     },
