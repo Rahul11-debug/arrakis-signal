@@ -8,7 +8,8 @@ import {
   getSingleComplaint,
   assignComplaint,
   updatePriority,
-  deleteComplaint
+  deleteComplaint,
+  generateComplaintReport
 } from '../controllers/complaint.controller.js';
 
 import { protect } from '../middlewares/auth.middleware.js';
@@ -25,7 +26,7 @@ router.put('/:id/status', protect, authorise('admin', 'staff'), updateStatus);
 router.put('/:id/assign', protect, authorise('admin'), assignComplaint);
 router.delete('/:id', protect, authorise('admin'), deleteComplaint);
 router.put('/:id/priority', protect, authorise('admin'), updatePriority);
-
+router.get('/:id/report', protect, authorise('admin', 'staff'), generateComplaintReport);
 router.get('/heatmap', heatmapData);
 
 export default router;
