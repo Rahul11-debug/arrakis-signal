@@ -12,7 +12,7 @@ import analyticsRoutes from './routes/analytics.routes.js';
 import slaRoutes from './routes/sla.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import publicRoutes from './routes/public.routes.js';
-
+import dashboardRoutes from './routes/dashboard.routes.js';
 import errorHandler from './middlewares/error.middleware.js';
 import otpRoutes from './routes/otp.routes.js';
 import passwordRoutes from './routes/password.routes.js';
@@ -35,6 +35,8 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/sla', slaRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+
 
 app.use(errorHandler);
 
