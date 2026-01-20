@@ -1,6 +1,7 @@
 import Complaint from '../models/Complaint.js';
 import PDFDocument from 'pdfkit';
 import User from '../models/User.js';
+import { allowedTransitions } from '../utils/complaintLifecycle.js';
 
 export const createComplaint = async (req, res) => {
   try {
@@ -37,30 +38,40 @@ export const myComplaints = async (req, res) => {
     res.json(data);
 };
 
-export const getSingleComplaint = async (req, res) => {
+export const getMySingleComplaint = async (req, res) => {
   try {
-    const complaint = await Complaint.findById(req.params.id)
-      .populate('user', 'name email role')
-      .populate('assignedTo', 'name email role');
+    const complaint = await Complaint.findOne({
+      _id: req.params.id,
+      user: req.user._id, 
+    })
+      .populate('assignedTo', 'name email role')
+      .populate('remarks.addedBy', 'name role')
+      .populate('statusHistory.changedBy', 'name role');
 
     if (!complaint) {
       return res.status(404).json({
-        message: 'Complaint not found'
-      });
-    }
-    if (
-      req.user.role === 'user' &&
-      complaint.user._id.toString() !== req.user._id.toString()
-    ) {
-      return res.status(403).json({
-        message: 'Access denied'
+        message: 'Complaint not found',
       });
     }
 
-    res.json(complaint);
+    res.json({
+      id: complaint._id,
+      title: complaint.title,
+      description: complaint.description,
+      category: complaint.category,
+      priority: complaint.priority,
+      status: complaint.status,
+      location: complaint.location,
+      image: complaint.image,
+      assignedTo: complaint.assignedTo,
+      remarks: complaint.remarks,
+      statusHistory: complaint.statusHistory,
+      createdAt: complaint.createdAt,
+      updatedAt: complaint.updatedAt,
+    });
   } catch (error) {
     res.status(500).json({
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -237,6 +248,170 @@ export const generateComplaintReport = async (req, res) => {
 };
 
 export const heatmapData = async (req, res) => {
-    const data = await Complaint.find({}, '{location:1, _id:0}');
-    res.json(data);
+  try {
+    const complaints = await Complaint.find(
+      {
+        'location.lat': { $exists: true },
+        'location.lng': { $exists: true },
+      },
+      {
+        location: 1,
+        _id: 0,
+      }
+    );
+
+    const heatmapPoints = complaints.map(c => ({
+      lat: c.location.lat,
+      lng: c.location.lng,
+      intensity: 1, 
+    }));
+
+    res.json(heatmapPoints);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+export const updateComplaintLifecycle = async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ message: 'Status is required' });
+    }
+
+    const complaint = await Complaint.findById(req.params.id);
+    if (!complaint) {
+      return res.status(404).json({ message: 'Complaint not found' });
+    }
+
+    const currentStatus = complaint.status;
+    const allowedNext = allowedTransitions[currentStatus];
+
+    if (!allowedNext.includes(status)) {
+      return res.status(400).json({
+        message: `Cannot move complaint from ${currentStatus} to ${status}`,
+      });
+    }
+
+    complaint.status = status;
+
+    if (status === 'assigned' && !complaint.assignedTo) {
+      return res.status(400).json({
+        message: 'Assign staff before marking as assigned',
+      });
+    }
+
+    if (status === 'resolved') {
+      complaint.resolvedAt = new Date();
+    }
+
+    complaint.statusHistory.push({
+      status,
+      changedBy: req.user._id,
+    });
+
+    await complaint.save();
+
+    res.json({
+      message: 'Complaint status updated successfully',
+      complaint,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getComplaintHistory = async (req, res) => {
+  const complaint = await Complaint.findById(req.params.id)
+    .populate('statusHistory.changedBy', 'name role');
+
+  if (!complaint) {
+    return res.status(404).json({ message: 'Complaint not found' });
+  }
+
+  res.json(complaint.statusHistory);
+};
+
+export const addRemark = async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    if (!message) {
+      return res.status(400).json({
+        message: 'Remark message is required',
+      });
+    }
+
+    const complaint = await Complaint.findById(req.params.id);
+    if (!complaint) {
+      return res.status(404).json({
+        message: 'Complaint not found',
+      });
+    }
+
+    complaint.remarks.push({
+      message,
+      addedBy: req.user._id,
+    });
+
+    await complaint.save();
+
+    res.json({
+      message: 'Remark added successfully',
+      remarks: complaint.remarks,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const filterComplaints = async (req, res) => {
+  try {
+    const {
+      category,
+      priority,
+      locality,
+      from,
+      to,
+    } = req.query;
+
+    const filter = {};
+
+    if (category) {
+      filter.category = category;
+    }
+
+    if (priority) {
+      filter.priority = priority;
+    }
+
+    if (locality) {
+      filter['location.adress'] = {
+        $regex: locality,
+        $options: 'i', 
+      };
+    }
+
+    if (from || to) {
+      filter.createdAt = {};
+      if (from) filter.createdAt.$gte = new Date(from);
+      if (to) filter.createdAt.$lte = new Date(to);
+    }
+
+    const complaints = await Complaint.find(filter)
+      .populate('user', 'name email')
+      .populate('assignedTo', 'name email role')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      count: complaints.length,
+      complaints,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
 };
