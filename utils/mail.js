@@ -5,14 +5,14 @@ export const sendMail = async (to, subject, text) => {
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 587,
-      secure: false, // MUST be false for TLS
+      secure: false, 
       auth: {
         user: process.env.MAIL_USER.trim(),
         pass: process.env.MAIL_PASS.trim()
       }
     });
 
-    await transporter.verify(); // 🔥 IMPORTANT LINE
+    await transporter.verify(); 
 
     await transporter.sendMail({
       from: `"Arrakis Signal" <${process.env.MAIL_USER}>`,
