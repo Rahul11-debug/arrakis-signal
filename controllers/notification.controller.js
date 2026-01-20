@@ -1,5 +1,4 @@
-import Notification from "../models/Notification.js";
-
+import Notification from '../models/Notification.js';
 
 export const myNotifications = async (req, res) => {
     const data = await Notification.find({ user: req.user._id }).sort({ createdAt: -1 });
