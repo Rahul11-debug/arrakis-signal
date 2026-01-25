@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import User from '../models/User.js';
 import { sendMail } from '../utils/mail.js';
-
+import bcrypt from 'bcryptjs';
 
 export const forgotPassword = async (req, res) => {
   const { email } = req.body;
@@ -15,7 +15,7 @@ export const forgotPassword = async (req, res) => {
   user.resetPasswordExpiry = Date.now() + 15 * 60 * 1000; 
   await user.save();
 
-  const resetLink = `http://localhost:5173/reset-password/${resetToken}`;
+ const resetLink = `http://localhost:5173/password/change/${resetToken}`;
 
   await sendMail(
     user.email,
@@ -26,26 +26,31 @@ export const forgotPassword = async (req, res) => {
   res.json({ message:'Reset link sent to email' });
 };
 
-
 export const resetPassword = async (req, res) => {
-  const { token } = req.params;
-  const { password } = req.body;
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
 
-  const user = await User.findOne({
-    resetPasswordToken: token,
-    resetPasswordExpiry: { $gt: Date.now() }
-  });
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpiry: { $gt: Date.now() },
+    });
 
-  if (!user)
-    return res.status(400).json({ message:'Invalid or expired token' });
+    if (!user)
+      return res.status(400).json({ message: "Invalid or expired token" });
 
-  user.password = password;
-  user.resetPasswordToken = null;
-  user.resetPasswordExpiry = null;
-  await user.save();
+    user.password = password; // hashed by pre-save
+    user.resetPasswordToken = null;
+    user.resetPasswordExpiry = null;
 
-  res.json({ message:'Password reset successful' });
+    await user.save();
+
+    res.json({ success: true, message: "Password reset successful" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
+
 
 export const changePassword = async (req, res) => {
   try {
