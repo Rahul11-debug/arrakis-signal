@@ -1,22 +1,21 @@
-import axios from "axios";
 
-const API = import.meta.env.VITE_API_URL;
+import api from "./axios"
 
 export const registerUser = (data) =>
-  axios.post(`${API}/auth/register`, data);
+ api.post("api/auth/register", data);
 
 export const verifyOtp = (data) =>
-  axios.post(`${API}/otp/verify`, data);
+  api.post("api/otp/verify", data);
 
 export const loginUser = (data) =>
-  axios.post(`${API}/auth/login`, data,
+  api.post("api/auth/login", data,
     { withCredentials: true,
     }
   );
 
 export const getMe = () => {
   const token = localStorage.getItem("token");
-  return axios.get(`${API}/auth/me`, {
+  return api.get("api/auth/me", {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -24,21 +23,21 @@ export const getMe = () => {
 };
 
 export const forgotPassword = (email) =>
-  axios.post(`${API}/password/forgot`, { email });
+  api.post(`api/password/forgot`, { email });
 
 export const resetPassword = ({ token, password }) => {
-  return axios.post(`${API}/password/reset/${token}`, { password });
+  return api.post('api/password/reset/${token}', { password });
 };
 
 export const resendOtp = (email) => {
-  axios.post(`${API}/otp/resend`, { email });
+  api.post("api/otp/resend", { email });
 };
 
 export const changePassword = (data) =>
-  axios.put(`${API}/password/change/${data.token}`, data);
+  api.put('api/password/change/${data.token}', data);
 
 export const logout = () => {
-  axios.post(`${API}/auth/logout`, {}, {
+  api.post("api/auth/logout", {}, {
     withCredentials: true,
   });
 };
