@@ -30,6 +30,14 @@ app.use(cors({
   credentials: true
 }));
 
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+
 app.use(helmet());
 app.use(morgan('dev'));
 const __filename = fileURLToPath(import.meta.url);
