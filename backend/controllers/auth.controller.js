@@ -6,19 +6,16 @@ const generateToken = (id) => {
     return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
 
-
 export const register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password,role } = req.body;
 
-    // 1️⃣ basic validation
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !role) {
       return res.status(400).json({
-        message: "Name, email and password are required",
+        message: "Name, email, password and role are required",
       });
     }
 
-    // 2️⃣ check existing user
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({
@@ -26,14 +23,13 @@ export const register = async (req, res) => {
       });
     }
 
-    // 3️⃣ create user
     const user = await User.create({
       name,
       email,
       password,
+      role 
     });
 
-    // 4️⃣ send response
     res.status(201).json({
       _id: user._id,
       name: user.name,
@@ -68,18 +64,16 @@ export const login = async (req, res) => {
     { expiresIn: "1d" }
   );
 
-  // 🔥 THIS RESPONSE IS REQUIRED
   return res.status(200).json({
     success: true,
     token,
     user: {
       id: user._id,
       email: user.email,
-      role: user.role,   // 🔴 THIS IS WHAT YOU NEED
+      role: user.role,   
     },
   });
 };
-
 
 export const getMe = (req, res) => {
   res.status(200).json({
