@@ -39,7 +39,7 @@ export const resetPassword = async (req, res) => {
     if (!user)
       return res.status(400).json({ message: "Invalid or expired token" });
 
-    user.password = password; // hashed by pre-save
+    user.password = password;
     user.resetPasswordToken = null;
     user.resetPasswordExpiry = null;
 
@@ -50,7 +50,6 @@ export const resetPassword = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 export const changePassword = async (req, res) => {
   try {
