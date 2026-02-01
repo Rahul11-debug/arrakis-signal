@@ -20,7 +20,7 @@ import passwordRoutes from './routes/password.routes.js';
 const app = express();
 
 app.use(cors({
-  origin: "https://arrakis-signal.vercel.app",
+  origin: "https://arrakis-signal-75fi.vercel.app/",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true
 }));
