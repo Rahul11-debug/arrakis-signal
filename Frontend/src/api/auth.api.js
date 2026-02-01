@@ -26,7 +26,7 @@ export const forgotPassword = (email) =>
   api.post(`api/password/forgot`, { email });
 
 export const resetPassword = ({ token, password }) => {
-  return api.post('api/password/reset/${token}', { password });
+  api.post('api/password/reset/${token}', { password });
 };
 
 export const resendOtp = (email) => {
