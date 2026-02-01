@@ -2,6 +2,7 @@ import Complaint from '../models/Complaint.js';
 import PDFDocument from 'pdfkit';
 import User from '../models/User.js';
 import { allowedTransitions } from '../utils/complaintLifecycle.js';
+import { sendMail } from '../utils/mail.js';
 
 export const createComplaint = async (req, res) => {
   try {
@@ -40,18 +41,27 @@ export const myComplaints = async (req, res) => {
 
 export const getMySingleComplaint = async (req, res) => {
   try {
-    const complaint = await Complaint.findOne({
-      _id: req.params.id,
-      user: req.user._id, 
-    })
-      .populate('assignedTo', 'name email role')
-      .populate('remarks.addedBy', 'name role')
-      .populate('statusHistory.changedBy', 'name role');
+    const complaint = await Complaint.findById(req.params.id)
+      .populate('user', 'name email')
+      .populate('assignedTo', 'name email role');
 
     if (!complaint) {
-      return res.status(404).json({
-        message: 'Complaint not found',
-      });
+      return res.status(404).json({ message: 'Complaint not found' });
+    }
+
+    if (
+      req.user.role === 'citizen' &&
+      complaint.user._id.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    if (
+      req.user.role === 'staff' &&
+      complaint.assignedTo &&
+      complaint.assignedTo._id.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     res.json({
@@ -81,11 +91,47 @@ export const allComplaints = async (req, res) => {
     res.json(data);
 };
 
-export const updateStatus = async (req, res) => {
-    const complaint = await Complaint.findById(req.params.id);
-    complaint.status = req.body.status || complaint.status;
+export const updateComplaintStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    const complaint = await Complaint.findById(req.params.id)
+      .populate("user", "name email");
+
+    if (!complaint) {
+      return res.status(404).json({ message: "Complaint not found" });
+    }
+
+    complaint.status = status;
+
+    if (status === "resolved") {
+      complaint.resolvedAt = new Date();
+    }
+
     await complaint.save();
-    res.json(complaint);
+
+    if (complaint.user && complaint.user.email) {
+      await sendMail(
+        complaint.user.email,
+        "Complaint Status Updated",
+        `Hello ${complaint.user.name},
+
+Your complaint "${complaint.title}" status is now: ${status.toUpperCase()}.
+
+Thank you,
+Arrakis Signal`
+      );
+    }
+
+    res.json({
+      message: "Status updated successfully",
+      complaint,
+    });
+
+  } catch (error) {
+    console.error("❌ STATUS UPDATE ERROR:", error);
+    res.status(500).json({ message: error.message });
+  }
 };
 
 export const assignComplaint = async (req, res) => {
@@ -93,33 +139,43 @@ export const assignComplaint = async (req, res) => {
     const { staffId } = req.body;
 
     if (!staffId) {
-      return res.status(400).json({
-        message: 'staffId is required'
-      });
+      return res.status(400).json({ message: "staffId is required" });
     }
 
     const staff = await User.findById(staffId);
-    if (!staff || staff.role !== 'staff') {
-      return res.status(400).json({
-        message: 'Invalid staff user'
-      });
+
+    if (!staff || staff.role !== "staff") {
+      return res.status(400).json({ message: "Invalid staff user" });
     }
 
     const complaint = await Complaint.findById(req.params.id);
     if (!complaint) {
-      return res.status(404).json({
-        message: 'Complaint not found'
+      return res.status(404).json({ message: "Complaint not found" });
+    }
+
+    if (
+      req.user.role === "staff" &&
+      complaint.assignedTo &&
+      complaint.assignedTo.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        message: "You can only reassign complaints assigned to you",
       });
     }
 
     complaint.assignedTo = staffId;
-    complaint.status = 'in-progress';
+    complaint.status = "assigned";
+
+    complaint.statusHistory.push({
+      status: "assigned",
+      changedBy: req.user._id,
+    });
 
     await complaint.save();
 
     res.json({
-      message: 'Complaint assigned successfully',
-      complaint
+      message: "Complaint assigned successfully",
+      complaint,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -182,96 +238,50 @@ export const deleteComplaint = async (req, res) => {
 export const generateComplaintReport = async (req, res) => {
   try {
     const complaint = await Complaint.findById(req.params.id)
-      .populate('user', 'name email')
-      .populate('assignedTo', 'name email');
+      .populate("user", "name email")
+      .populate("assignedTo", "name email");
 
     if (!complaint) {
-      return res.status(404).json({
-        message: 'Complaint not found'
-      });
+      return res.status(404).json({ message: "Complaint not found" });
     }
+    res.writeHead(200, {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename=complaint-${complaint._id}.pdf`,
+    });
 
     const doc = new PDFDocument({ margin: 50 });
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename=complaint-${complaint._id}.pdf`
-    );
-
     doc.pipe(res);
 
-    doc
-      .fontSize(20)
-      .text('Complaint Report', { align: 'center' })
-      .moveDown(2);
+    doc.fontSize(20).text("Complaint Report", { align: "center" });
+    doc.moveDown();
 
     doc.fontSize(12);
-
-    doc.text(`Complaint ID: ${complaint._id}`);
     doc.text(`Title: ${complaint.title}`);
     doc.text(`Description: ${complaint.description}`);
     doc.text(`Category: ${complaint.category}`);
-    doc.text(`Status: ${complaint.status}`);
     doc.text(`Priority: ${complaint.priority}`);
+    doc.text(`Status: ${complaint.status}`);
     doc.moveDown();
 
-    doc.text('Location:', { underline: true });
-    doc.text(`Address: ${complaint.location.address}`);
-    doc.text(`Latitude: ${complaint.location.lat}`);
-    doc.text(`Longitude: ${complaint.location.lng}`);
-    doc.moveDown();
+    doc.text(`Citizen: ${complaint.user?.name || "N/A"}`);
+    doc.text(`Assigned To: ${complaint.assignedTo?.name || "Unassigned"}`);
+    doc.text(`Created At: ${new Date(complaint.createdAt).toLocaleString()}`);
 
-    doc.text('Reported By:', { underline: true });
-    doc.text(`Name: ${complaint.user.name}`);
-    doc.text(`Email: ${complaint.user.email}`);
-    doc.moveDown();
-
-    if (complaint.assignedTo) {
-      doc.text('Assigned To:', { underline: true });
-      doc.text(`Name: ${complaint.assignedTo.name}`);
-      doc.text(`Email: ${complaint.assignedTo.email}`);
+    if (complaint.slaDeadline) {
       doc.moveDown();
-    }
-
-    doc.text(`Created At: ${complaint.createdAt}`);
-    if (complaint.resolvedAt) {
-      doc.text(`Resolved At: ${complaint.resolvedAt}`);
+      doc.text(`SLA Deadline: ${new Date(complaint.slaDeadline).toLocaleString()}`);
     }
 
     doc.end();
+
   } catch (error) {
-    res.status(500).json({
-      message: error.message
-    });
+    console.error(error);
+    if (!res.headersSent) {
+      res.status(500).json({ message: error.message });
+    }
   }
 };
-
-export const heatmapData = async (req, res) => {
-  try {
-    const complaints = await Complaint.find(
-      {
-        'location.lat': { $exists: true },
-        'location.lng': { $exists: true },
-      },
-      {
-        location: 1,
-        _id: 0,
-      }
-    );
-
-    const heatmapPoints = complaints.map(c => ({
-      lat: c.location.lat,
-      lng: c.location.lng,
-      intensity: 1, 
-    }));
-
-    res.json(heatmapPoints);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
 
 export const updateComplaintLifecycle = async (req, res) => {
   try {
@@ -339,27 +349,26 @@ export const addRemark = async (req, res) => {
     const { message } = req.body;
 
     if (!message) {
-      return res.status(400).json({
-        message: 'Remark message is required',
-      });
+      return res.status(400).json({ message: "Remark message required" });
     }
 
     const complaint = await Complaint.findById(req.params.id);
+
     if (!complaint) {
-      return res.status(404).json({
-        message: 'Complaint not found',
-      });
+      return res.status(404).json({ message: "Complaint not found" });
     }
 
     complaint.remarks.push({
       message,
-      addedBy: req.user._id,
+      by: req.user._id,
+      role: req.user.role,
+      createdAt: new Date(),
     });
 
     await complaint.save();
 
     res.json({
-      message: 'Remark added successfully',
+      message: "Remark added",
       remarks: complaint.remarks,
     });
   } catch (error) {
@@ -369,49 +378,40 @@ export const addRemark = async (req, res) => {
 
 export const filterComplaints = async (req, res) => {
   try {
-    const {
-      category,
-      priority,
-      locality,
-      from,
-      to,
-    } = req.query;
+    const filters = {};
+    const { status, category, priority, dateFrom, dateTo } = req.query;
+    if (status) filters.status = status;
+    if (category) filters.category = category;  
+    if (priority) filters.priority = priority;
+    if (dateFrom || dateTo) {
+      filters.createdAt = {};
+      if (dateFrom) filters.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) filters.createdAt.$lte = new Date(dateTo);
+    }   
+    const complaints = await Complaint.find(filters)
+      .populate('user assignedTo', 'name email');
 
-    const filter = {};
-
-    if (category) {
-      filter.category = category;
-    }
-
-    if (priority) {
-      filter.priority = priority;
-    }
-
-    if (locality) {
-      filter['location.adress'] = {
-        $regex: locality,
-        $options: 'i', 
-      };
-    }
-
-    if (from || to) {
-      filter.createdAt = {};
-      if (from) filter.createdAt.$gte = new Date(from);
-      if (to) filter.createdAt.$lte = new Date(to);
-    }
-
-    const complaints = await Complaint.find(filter)
-      .populate('user', 'name email')
-      .populate('assignedTo', 'name email role')
-      .sort({ createdAt: -1 });
-
-    res.json({
-      count: complaints.length,
-      complaints,
-    });
+    res.json({ complaints });
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
+    res.status(500).json({ message: error.message });
+  } 
 };
+
+export const getPublicMapComplaints = async (req, res) => {
+  const complaints = await Complaint.find(
+    {
+      "location.lat": { $exists: true },
+      "location.lng": { $exists: true }
+    },
+    {
+      title: 1,
+      status: 1,
+      priority: 1,
+      location: 1
+    }
+  );
+
+  res.json(complaints);
+};
+
+
