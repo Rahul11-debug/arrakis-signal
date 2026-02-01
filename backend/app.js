@@ -22,14 +22,14 @@ const app = express();
 app.use(express.json());
 
 app.use(cors({
-  origin: 
+  origin: [
     "http://localhost:5173",
+  ],
   
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true
 }));
 
-app.options("*", cors());
 app.use(helmet());
 app.use(morgan('dev'));
 const __filename = fileURLToPath(import.meta.url);
