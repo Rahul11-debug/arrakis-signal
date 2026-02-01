@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { resolve } from 'path';
 
 const schema = new mongoose.Schema(
   {
@@ -49,14 +50,19 @@ const schema = new mongoose.Schema(
           type: String,
           required: true,
         },
-        addedBy: {
+        by: {
           type: mongoose.Schema.Types.ObjectId,
           ref: 'User',
           required: true,
         },
-        addedAt: {
+        createdAt: {
           type: Date,
           default: Date.now,
+        },
+        role: {
+          type: String,
+          enum: ['admin', 'staff'],
+          required: true,
         },
       },
     ],
@@ -77,8 +83,27 @@ const schema = new mongoose.Schema(
     },
     slaDeadline: {
       type: Date,
+      resolvedAt:{
+        type: Date,
+      }
+    },
+
+    lifecycle: [
+  {
+    status: String,
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now,
     },
   },
+  ],
+  },
+
+  
   { timestamps: true }
 );
 
