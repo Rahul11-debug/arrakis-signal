@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { resetPassword } from "../../api/auth.api";
 
 export default function ResetPassword() {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-
-  const token = searchParams.get("token");
+  const { token } = useParams();
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -34,18 +32,16 @@ export default function ResetPassword() {
     try {
       setLoading(true);
 
-      await resetPassword({
-        token,
-        password,
-      });
+      await resetPassword({ token, password });
 
       alert("Password reset successful");
-      navigate("/login");
+
+      navigate("/login", { replace: true });
+
 
     } catch (err) {
       setError(
-        err.response?.data?.message ||
-          "Failed to reset password"
+        err.response?.data?.message || "Failed to reset password"
       );
     } finally {
       setLoading(false);
@@ -55,10 +51,7 @@ export default function ResetPassword() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 to-purple-700">
       <div className="bg-white p-8 rounded-xl w-96 text-center">
-
-        <h2 className="text-2xl font-bold mb-4">
-          Reset Password
-        </h2>
+        <h2 className="text-2xl font-bold mb-4">Reset Password</h2>
 
         <input
           type="password"
@@ -77,9 +70,7 @@ export default function ResetPassword() {
         />
 
         {error && (
-          <p className="text-red-600 text-sm mb-3">
-            {error}
-          </p>
+          <p className="text-red-600 text-sm mb-3">{error}</p>
         )}
 
         <button
@@ -89,7 +80,6 @@ export default function ResetPassword() {
         >
           {loading ? "Resetting..." : "Reset Password"}
         </button>
-
       </div>
     </div>
   );
